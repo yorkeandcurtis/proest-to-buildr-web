@@ -1,0 +1,14 @@
+{
+  "name": "proest-to-buildr-web",
+  "version": "1.0.0",
+  "description": "Web app to transfer ProEst estimates to Buildr-compatible Excel files",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "exceljs": "^4.4.0"
+  }
+}
