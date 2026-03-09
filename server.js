@@ -10,14 +10,14 @@ const PORT = process.env.PORT || 3000;
 // ── API Credentials (env vars with dev defaults) ──────────────────────────────
 
 const PROEST_BASE = process.env.PROEST_BASE_URL || 'https://cloud.proest.com/external_api/v1';
-const PROEST_PARTNER_KEY = process.env.PROEST_PARTNER_KEY || 'tRUCaYu1HpRURb1geiM_';
-const PROEST_COMPANY_KEY = process.env.PROEST_COMPANY_KEY || '_JVadJkZ-Wzh9so_Zdy2';
+const PROEST_PARTNER_KEY = process.env.PROEST_PARTNER_KEY;
+const PROEST_COMPANY_KEY = process.env.PROEST_COMPANY_KEY;
 
 const BUILDR_AUTH_URL = 'https://buildr.app/oauth/authorize';
 const BUILDR_TOKEN_URL = process.env.BUILDR_TOKEN_URL || 'https://buildr.app/oauth/token';
 const BUILDR_BASE = process.env.BUILDR_BASE_URL || 'https://api.buildr.com/api/2023-01';
-const BUILDR_CLIENT_ID = process.env.BUILDR_CLIENT_ID || 'hBCahZo4zFvE2qD58vnvRFOtjG0W00Ia3UaZCCerNJU';
-const BUILDR_CLIENT_SECRET = process.env.BUILDR_CLIENT_SECRET || 'SwB-6dLuZXPf9j-PNAIg4QQRt_b1Cw-oY2SPOLYeI1w';
+const BUILDR_CLIENT_ID = process.env.BUILDR_CLIENT_ID;
+const BUILDR_CLIENT_SECRET = process.env.BUILDR_CLIENT_SECRET;
 
 // Session secret for signing cookies
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
