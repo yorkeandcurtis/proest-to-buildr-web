@@ -13,11 +13,13 @@ const PROEST_BASE = process.env.PROEST_BASE_URL || 'https://cloud.proest.com/ext
 const PROEST_PARTNER_KEY = process.env.PROEST_PARTNER_KEY;
 const PROEST_COMPANY_KEY = process.env.PROEST_COMPANY_KEY;
 
-const BUILDR_AUTH_URL = 'https://buildr.app/oauth/authorize';
 const BUILDR_TOKEN_URL = process.env.BUILDR_TOKEN_URL || 'https://buildr.app/oauth/token';
 const BUILDR_BASE = process.env.BUILDR_BASE_URL || 'https://api.buildr.com/api/2023-01';
 const BUILDR_CLIENT_ID = process.env.BUILDR_CLIENT_ID;
 const BUILDR_CLIENT_SECRET = process.env.BUILDR_CLIENT_SECRET;
+
+// Simple password for team access
+const APP_PASSWORD = process.env.APP_PASSWORD || 'ycbuildr2024';
 
 // Session secret for signing cookies
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -144,88 +146,33 @@ async function buildrFetch(path) {
   return res.json();
 }
 
-// ── OAuth Login Routes ───────────────────────────────────────────────────────
+// ── Password Login Routes ────────────────────────────────────────────────────
 
-function getRedirectUri(req) {
-  const proto = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.headers['x-forwarded-host'] || req.get('host');
-  return `${proto}://${host}/auth/callback`;
-}
+app.use(express.urlencoded({ extended: false }));
 
-app.get('/auth/login', (req, res) => {
-  const redirectUri = getRedirectUri(req);
-  const url = `${BUILDR_AUTH_URL}?response_type=code&client_id=${BUILDR_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read+write`;
-  res.redirect(url);
-});
-
-app.get('/auth/callback', async (req, res) => {
-  const { code, error } = req.query;
-  if (error || !code) {
-    return res.send('<h2>Login failed</h2><p>' + (error || 'No authorization code received') + '</p><a href="/auth/login">Try again</a>');
+app.post('/auth/login', (req, res) => {
+  const { password, name } = req.body;
+  if (password !== APP_PASSWORD) {
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(LOGIN_HTML.replace('<!--ERROR-->', '<div class="error-msg">Incorrect password. Please try again.</div>'));
   }
-
-  try {
-    const redirectUri = getRedirectUri(req);
-    const tokenRes = await fetch(BUILDR_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        client_id: BUILDR_CLIENT_ID,
-        client_secret: BUILDR_CLIENT_SECRET,
-        code,
-        redirect_uri: redirectUri,
-      }),
-    });
-
-    if (!tokenRes.ok) {
-      const text = await tokenRes.text();
-      console.error('Token exchange failed:', text);
-      return res.send('<h2>Login failed</h2><p>Could not exchange authorization code.</p><a href="/auth/login">Try again</a>');
-    }
-
-    const tokenData = await tokenRes.json();
-
-    // Fetch user info from Buildr
-    const userRes = await fetch(`${BUILDR_BASE}/users/me`, {
-      headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: 'application/json' },
-    });
-
-    let userName = 'User';
-    let userEmail = '';
-    if (userRes.ok) {
-      const userData = await userRes.json();
-      const user = userData.user || userData;
-      userName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
-      userEmail = user.email || '';
-    }
-
-    const sessionId = createSession({
-      name: userName,
-      email: userEmail,
-      buildrToken: tokenData.access_token,
-    });
-
-    setSessionCookie(res, sessionId);
-    res.redirect('/');
-  } catch (err) {
-    console.error('OAuth callback error:', err);
-    res.send('<h2>Login failed</h2><p>' + err.message + '</p><a href="/auth/login">Try again</a>');
-  }
+  const sessionId = createSession({ name: name || 'Team Member' });
+  setSessionCookie(res, sessionId);
+  res.redirect('/');
 });
 
 app.get('/auth/logout', (req, res) => {
   const sessionId = parseCookies(req).session;
   if (sessionId) sessions.delete(sessionId);
   res.clearCookie('session');
-  res.redirect('/auth/login');
+  res.redirect('/');
 });
 
 app.get('/auth/me', (req, res) => {
   const sessionId = parseCookies(req).session;
   const session = getSession(sessionId);
   if (!session) return res.status(401).json({ error: 'Not authenticated' });
-  res.json({ name: session.name, email: session.email });
+  res.json({ name: session.name });
 });
 
 // ── API Routes (all require auth) ────────────────────────────────────────────
@@ -443,22 +390,53 @@ const LOGIN_HTML = `<!DOCTYPE html>
     font-size: 14px;
     margin-bottom: 32px;
   }
+  .login-card form { text-align: left; }
+  .login-card label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 6px;
+  }
+  .login-card input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #DCE3EB;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+  }
+  .login-card input:focus { border-color: #2A6BA3; }
   .login-card .login-btn {
-    display: inline-block;
-    padding: 14px 32px;
+    display: block;
+    width: 100%;
+    padding: 14px;
     background: #1F4E79;
     color: white;
-    text-decoration: none;
+    border: none;
     border-radius: 8px;
     font-size: 16px;
     font-weight: 600;
+    cursor: pointer;
     transition: background 0.2s;
   }
   .login-card .login-btn:hover { background: #2A6BA3; }
+  .error-msg {
+    background: #FDEDEC;
+    color: #E74C3C;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    border: 1px solid #F5B7B1;
+  }
   .login-card .note {
     margin-top: 24px;
     font-size: 12px;
     color: #9BA8B7;
+    text-align: center;
   }
 </style>
 </head>
@@ -466,8 +444,15 @@ const LOGIN_HTML = `<!DOCTYPE html>
 <div class="login-card">
   <h1>ProEst to Buildr Transfer</h1>
   <div class="subtitle">Yorke &amp; Curtis, Inc.</div>
-  <a href="/auth/login" class="login-btn">Sign in with Buildr</a>
-  <div class="note">Use your Buildr account to access this tool.</div>
+  <form method="POST" action="/auth/login">
+    <!--ERROR-->
+    <label for="name">Your Name</label>
+    <input type="text" id="name" name="name" placeholder="e.g. Erik" required />
+    <label for="password">Team Password</label>
+    <input type="password" id="password" name="password" placeholder="Enter password" required />
+    <button type="submit" class="login-btn">Sign In</button>
+  </form>
+  <div class="note">Ask your administrator for the team password.</div>
 </div>
 </body>
 </html>`;
@@ -685,13 +670,13 @@ async function init() {
   try {
     const res = await fetch('/auth/me');
     if (!res.ok) {
-      window.location.href = '/auth/login';
+      window.location.href = '/';
       return;
     }
     const user = await res.json();
     document.getElementById('userName').textContent = user.name;
   } catch {
-    window.location.href = '/auth/login';
+    window.location.href = '/';
     return;
   }
   loadProjects();
@@ -714,7 +699,7 @@ async function lookupEstimate() {
 
   try {
     const res = await fetch('/api/proest/estimates?query=' + encodeURIComponent(code));
-    if (res.status === 401) { window.location.href = '/auth/login'; return; }
+    if (res.status === 401) { window.location.href = '/'; return; }
     if (!res.ok) throw new Error((await res.json()).error || 'Search failed');
     const estimates = await res.json();
 
@@ -732,7 +717,7 @@ async function lookupEstimate() {
     setStatus(status, 'info', 'Loading estimate details...');
 
     const detailRes = await fetch('/api/proest/estimates/' + est.id);
-    if (detailRes.status === 401) { window.location.href = '/auth/login'; return; }
+    if (detailRes.status === 401) { window.location.href = '/'; return; }
     if (!detailRes.ok) throw new Error((await detailRes.json()).error || 'Detail fetch failed');
     estimateData = await detailRes.json();
 
@@ -772,7 +757,7 @@ async function loadProjects() {
 
   try {
     const res = await fetch('/api/buildr/projects');
-    if (res.status === 401) { window.location.href = '/auth/login'; return; }
+    if (res.status === 401) { window.location.href = '/'; return; }
     if (!res.ok) throw new Error((await res.json()).error || 'Failed to load projects');
     allProjects = await res.json();
     setStatus(status, 'success', allProjects.length + ' projects loaded');
@@ -845,7 +830,7 @@ async function doTransfer() {
       }),
     });
 
-    if (res.status === 401) { window.location.href = '/auth/login'; return; }
+    if (res.status === 401) { window.location.href = '/'; return; }
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Transfer failed');
